@@ -1,0 +1,208 @@
+name: Auto Create & Build Torch APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Generate All Android Project Files
+      run: |
+        # ১. প্রয়োজনীয় ফোল্ডার স্ট্রাকচার তৈরি
+        mkdir -p settings.gradle app/src/main/java/com/example/torchapp app/src/main/res/layout app/src/main/res/values
+
+        # ২. settings.gradle ফাইল তৈরি
+        cat << 'EOF' > settings.gradle
+        pluginManagement {
+            repositories {
+                google()
+                mavenCentral()
+                gradlePluginPortal()
+            }
+        }
+        dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        rootProject.name = "TorchApp"
+        include ':app'
+        EOF
+
+        # ৩. Root build.gradle ফাইল তৈরি
+        cat << 'EOF' > build.gradle
+        plugins {
+            id 'com.android.application' version '8.1.1' apply false
+        }
+        EOF
+
+        # ৪. app/build.gradle ফাইল তৈরি
+        cat << 'EOF' > app/build.gradle
+        plugins {
+            id 'com.android.application'
+        }
+
+        android {
+            namespace 'com.example.torchapp'
+            compileSdk 33
+
+            defaultConfig {
+                applicationId "com.example.torchapp"
+                minSdk 23
+                targetSdk 33
+                versionCode 1
+                versionName "1.0"
+            }
+
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_17
+                targetCompatibility JavaVersion.VERSION_17
+            }
+        }
+
+        dependencies {
+            implementation 'androidx.appcompat:appcompat:1.6.1'
+            implementation 'com.google.android.material:material:1.9.0'
+            implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+        }
+        EOF
+
+        # ৫. AndroidManifest.xml ফাইল তৈরি
+        cat << 'EOF' > app/src/main/AndroidManifest.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+            <uses-permission android:name="android.permission.CAMERA" />
+            <uses-feature android:name="android.hardware.camera.flash" />
+
+            <application
+                android:allowBackup="true"
+                android:icon="@mipmap/ic_launcher"
+                android:label="Torch App"
+                android:supportsRtl="true"
+                android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
+                
+                <activity
+                    android:name=".MainActivity"
+                    android:exported="true">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+
+        </manifest>
+        EOF
+
+        # ৬. layout (activity_main.xml) তৈরি
+        cat << 'EOF' > app/src/main/res/layout/activity_main.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <Button
+                android:id="@+id/btnTorchOn"
+                android:layout_width="200dp"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:text="ON TORCH"
+                android:textSize="18sp" />
+
+            <Button
+                android:id="@+id/btnTorchOff"
+                android:layout_width="200dp"
+                android:layout_height="wrap_content"
+                android:text="OFF TORCH"
+                android:textSize="18sp" />
+
+        </LinearLayout>
+        EOF
+
+        # ৭. Java Code (MainActivity.java) তৈরি
+        cat << 'EOF' > app/src/main/java/com/example/torchapp/MainActivity.java
+        package com.example.torchapp;
+
+        import android.content.Context;
+        import android.hardware.camera2.CameraAccessException;
+        import android.hardware.camera2.CameraManager;
+        import android.os.Build;
+        import android.os.Bundle;
+        import android.widget.Button;
+        import android.widget.Toast;
+        import androidx.appcompat.app.AppCompatActivity;
+
+        public class MainActivity extends AppCompatActivity {
+
+            private Button btnTorchOn, btnTorchOff;
+            private CameraManager cameraManager;
+            private String cameraId;
+
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+                setContentView(R.layout.activity_main);
+
+                btnTorchOn = findViewById(R.id.btnTorchOn);
+                btnTorchOff = findViewById(R.id.btnTorchOff);
+
+                cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+                try {
+                    if (cameraManager != null) {
+                        cameraId = cameraManager.getCameraIdList()[0];
+                    }
+                } catch (CameraAccessException e) {
+                    e.printStackTrace();
+                }
+
+                btnTorchOn.setOnClickListener(v -> turnTorch(true));
+                btnTorchOff.setOnClickListener(v -> turnTorch(false));
+            }
+
+            private void turnTorch(boolean isOn) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    try {
+                        if (cameraId != null) {
+                            cameraManager.setTorchMode(cameraId, isOn);
+                            String message = isOn ? "Torch Turned ON" : "Torch Turned OFF";
+                            Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+                        }
+                    } catch (CameraAccessException e) {
+                        e.printStackTrace();
+                        Toast.makeText(this, "Error controlling flashlight", Toast.LENGTH_SHORT).show();
+                    }
+                }
+            }
+        }
+        EOF
+
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v2
+
+    - name: Build Debug APK
+      run: gradle assembleDebug
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: torch-app-debug
+        path: app/build/outputs/apk/debug/app-debug.apk
