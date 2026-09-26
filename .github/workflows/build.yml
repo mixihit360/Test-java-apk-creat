@@ -21,10 +21,16 @@ jobs:
 
     - name: Generate All Android Project Files
       run: |
-        # ১. প্রয়োজনীয় ফোল্ডার স্ট্রাকচার তৈরি
-        mkdir -p settings.gradle app/src/main/java/com/example/torchapp app/src/main/res/layout app/src/main/res/values
+        # ১. প্রয়োজনীয় ফোল্ডার স্ট্রাকচার তৈরি (Removed settings.gradle from mkdir)
+        mkdir -p app/src/main/java/com/example/torchapp app/src/main/res/layout app/src/main/res/values
 
-        # ২. settings.gradle ফাইল তৈরি
+        # ২. gradle.properties তৈরি (Important for modern Android builds)
+        cat << 'EOF' > gradle.properties
+        android.useAndroidX=true
+        org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+        EOF
+
+        # ৩. settings.gradle ফাইল তৈরি
         cat << 'EOF' > settings.gradle
         pluginManagement {
             repositories {
@@ -44,14 +50,14 @@ jobs:
         include ':app'
         EOF
 
-        # ৩. Root build.gradle ফাইল তৈরি
+        # ৪. Root build.gradle ফাইল তৈরি
         cat << 'EOF' > build.gradle
         plugins {
             id 'com.android.application' version '8.1.1' apply false
         }
         EOF
 
-        # ৪. app/build.gradle ফাইল তৈরি
+        # ৫. app/build.gradle ফাইল তৈরি
         cat << 'EOF' > app/build.gradle
         plugins {
             id 'com.android.application'
@@ -82,17 +88,16 @@ jobs:
         }
         EOF
 
-        # ৫. AndroidManifest.xml ফাইল তৈরি
+        # ৬. AndroidManifest.xml ফাইল তৈরি (Fixed XML namespace and removed missing icon)
         cat << 'EOF' > app/src/main/AndroidManifest.xml
         <?xml version="1.0" encoding="utf-8"?>
-        <manifest xmlns:android="http://schemas.android.com/schemas/android">
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
             <uses-permission android:name="android.permission.CAMERA" />
             <uses-feature android:name="android.hardware.camera.flash" />
 
             <application
                 android:allowBackup="true"
-                android:icon="@mipmap/ic_launcher"
                 android:label="Torch App"
                 android:supportsRtl="true"
                 android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
@@ -110,7 +115,7 @@ jobs:
         </manifest>
         EOF
 
-        # ৬. layout (activity_main.xml) তৈরি
+        # ৭. layout (activity_main.xml) তৈরি
         cat << 'EOF' > app/src/main/res/layout/activity_main.xml
         <?xml version="1.0" encoding="utf-8"?>
         <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -138,7 +143,7 @@ jobs:
         </LinearLayout>
         EOF
 
-        # ৭. Java Code (MainActivity.java) তৈরি
+        # ৮. Java Code (MainActivity.java) তৈরি
         cat << 'EOF' > app/src/main/java/com/example/torchapp/MainActivity.java
         package com.example.torchapp;
 
@@ -198,8 +203,11 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
 
+    - name: Generate Gradle Wrapper
+      run: gradle wrapper --gradle-version 8.4
+
     - name: Build Debug APK
-      run: gradle assembleDebug
+      run: ./gradlew assembleDebug
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
